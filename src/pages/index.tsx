@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Head from 'next/head';
+import { loadStripe } from '@stripe/stripe-js';
 
 interface PricingTier {
   range: string;
@@ -13,6 +14,8 @@ const pricingTiers: PricingTier[] = [
   { range: '11-30', price: 3.99, description: 'Medium batch conversion' },
   { range: '31-100', price: 7.99, description: 'Large batch conversion' },
 ];
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY!);
 
 export default function Home() {
   const [files, setFiles] = useState<File[]>([]);
@@ -69,7 +72,7 @@ export default function Home() {
         });
         
         const { sessionId } = await response.json();
-        const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY!);
+        const stripe = await stripePromise;
         await stripe?.redirectToCheckout({ sessionId });
       }
     } catch (error) {
