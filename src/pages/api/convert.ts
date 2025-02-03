@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import sharp from 'sharp';
-import { IncomingForm } from 'formidable';
+import formidable, { Fields, Files, File } from 'formidable';
 import fs from 'fs/promises';
 
 export const config = {
@@ -8,6 +8,10 @@ export const config = {
     bodyParser: false,
   },
 };
+
+interface FormidableError extends Error {
+  httpCode?: number;
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -18,16 +22,16 @@ export default async function handler(
   }
 
   try {
-    const form = new IncomingForm();
-    const [fields, files] = await new Promise((resolve, reject) => {
-      form.parse(req, (err, fields, files) => {
+    const form = formidable();
+    const [fields, files]: [Fields, Files] = await new Promise((resolve, reject) => {
+      form.parse(req, (err: FormidableError | null, fields: Fields, files: Files) => {
         if (err) reject(err);
         resolve([fields, files]);
       });
     });
 
-    const file = files.file[0];
-    const format = fields.format[0] as string;
+    const file = files.file?.[0] as File;
+    const format = fields.format?.[0] as string;
     
     if (!file || !format) {
       return res.status(400).json({ error: 'Missing file or format' });
