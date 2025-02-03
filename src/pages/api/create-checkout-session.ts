@@ -5,27 +5,28 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-10-16',
 });
 
+const getPriceForImageCount = (count: number): number => {
+  if (count <= 1) return 0;
+  if (count <= 10) return 199; // $1.99
+  if (count <= 30) return 399; // $3.99
+  if (count <= 100) return 799; // $7.99
+  return 0;
+};
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ message: 'Method not allowed' });
   }
 
   try {
     const { files, format } = req.body;
-    let amount: number;
+    const price = getPriceForImageCount(files);
 
-    // Calculate price based on number of files
-    if (files <= 10) {
-      amount = 199; // $1.99
-    } else if (files <= 30) {
-      amount = 399; // $3.99
-    } else if (files <= 100) {
-      amount = 799; // $7.99
-    } else {
-      return res.status(400).json({ error: 'Too many files' });
+    if (price === 0) {
+      return res.status(400).json({ message: 'Invalid file count' });
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -35,22 +36,22 @@ export default async function handler(
           price_data: {
             currency: 'usd',
             product_data: {
-              name: 'Batch Image Conversion',
-              description: `Convert ${files} images to ${format}`,
+              name: 'Image Conversion',
+              description: `Convert ${files} images to ${format} format`,
             },
-            unit_amount: amount,
+            unit_amount: price,
           },
           quantity: 1,
         },
       ],
       mode: 'payment',
       success_url: `${req.headers.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${req.headers.origin}/`,
+      cancel_url: `${req.headers.origin}`,
     });
 
     res.status(200).json({ sessionId: session.id });
   } catch (error) {
-    console.error('Stripe error:', error);
-    res.status(500).json({ error: 'Payment session creation failed' });
+    console.error('Error creating checkout session:', error);
+    res.status(500).json({ message: 'Error creating checkout session' });
   }
 }
