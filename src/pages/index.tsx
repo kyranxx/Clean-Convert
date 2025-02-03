@@ -15,6 +15,7 @@ const pricingTiers: PricingTier[] = [
   { range: '31-100', price: 7.99, description: 'Large batch conversion' },
 ];
 
+// Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY!);
 
 export default function Home() {
@@ -73,7 +74,9 @@ export default function Home() {
         
         const { sessionId } = await response.json();
         const stripe = await stripePromise;
-        await stripe?.redirectToCheckout({ sessionId });
+        if (stripe) {
+          await stripe.redirectToCheckout({ sessionId });
+        }
       }
     } catch (error) {
       console.error('Conversion failed:', error);
