@@ -15,7 +15,6 @@ const pricingTiers: PricingTier[] = [
   { range: '31-100', price: 7.99, description: 'Large batch conversion' },
 ];
 
-// Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY!);
 
 export default function Home() {
@@ -41,7 +40,6 @@ export default function Home() {
     setConverting(true);
     try {
       if (files.length === 1) {
-        // Free conversion logic
         const formData = new FormData();
         formData.append('file', files[0]);
         formData.append('format', selectedFormat);
@@ -60,7 +58,6 @@ export default function Home() {
           a.click();
         }
       } else {
-        // Paid conversion logic
         const response = await fetch('/api/create-checkout-session', {
           method: 'POST',
           headers: {
@@ -86,49 +83,53 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background via-white to-background">
       <Head>
         <title>Image Converter - Simple & Beautiful</title>
         <meta name="description" content="Convert your images to different formats easily" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <main className="container mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold text-center mb-8 text-gray-800">
+      <main className="container mx-auto px-4 py-16">
+        <h1 className="text-5xl font-bold text-center mb-4 gradient-text">
           Image Converter
         </h1>
+        <p className="text-center text-gray-600 mb-12 text-lg">
+          Convert your images easily with our beautiful and simple tool
+        </p>
 
         <div className="max-w-2xl mx-auto">
           <div
             {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-              ${isDragActive ? 'border-primary bg-blue-50' : 'border-gray-300 hover:border-primary'}`}
+            className={`card animated-border ${
+              isDragActive ? 'border-primary-300 bg-primary-50' : ''
+            } transition-all duration-300 ease-in-out cursor-pointer`}
           >
             <input {...getInputProps()} />
-            <div className="space-y-4">
-              <div className="text-lg text-gray-600">
+            <div className="space-y-4 text-center">
+              <div className={`text-xl ${isDragActive ? 'text-primary-600' : 'text-gray-600'}`}>
                 {isDragActive ? (
-                  <p>Drop your images here...</p>
+                  <p className="animate-float">Drop your images here...</p>
                 ) : (
                   <p>Drag & drop images here, or click to select</p>
                 )}
               </div>
               {files.length > 0 && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 bg-gray-50 py-2 px-4 rounded-full inline-block">
                   {files.length} file(s) selected
                 </p>
               )}
             </div>
           </div>
 
-          <div className="mt-6">
+          <div className="mt-8">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Convert to:
             </label>
             <select
               value={selectedFormat}
               onChange={(e) => setSelectedFormat(e.target.value)}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+              className="input-field"
             >
               <option value="png">PNG</option>
               <option value="jpg">JPG</option>
@@ -140,28 +141,37 @@ export default function Home() {
           <button
             onClick={handleConversion}
             disabled={files.length === 0 || converting}
-            className={`mt-6 w-full py-3 px-4 rounded-md text-white font-medium
-              ${files.length === 0 || converting
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-primary hover:bg-blue-600'}`}
+            className="btn-primary w-full mt-8"
           >
-            {converting ? 'Converting...' : 'Convert Now'}
+            {converting ? (
+              <span className="flex items-center justify-center">
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Converting...
+              </span>
+            ) : (
+              'Convert Now'
+            )}
           </button>
         </div>
 
-        {/* Pricing Section */}
-        <div className="mt-16">
-          <h2 className="text-3xl font-bold text-center mb-8 text-gray-800">
-            Pricing
+        <div className="mt-24">
+          <h2 className="text-3xl font-bold text-center mb-4 gradient-text">
+            Simple Pricing
           </h2>
+          <p className="text-center text-gray-600 mb-12">
+            Choose the perfect plan for your needs
+          </p>
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             {pricingTiers.map((tier) => (
               <div
                 key={tier.range}
-                className="bg-white rounded-lg shadow-lg p-6 text-center"
+                className="card hover:scale-105 transition-transform duration-300"
               >
                 <h3 className="text-xl font-semibold mb-2">{tier.range} Images</h3>
-                <p className="text-3xl font-bold text-primary mb-4">
+                <p className="text-4xl font-bold text-primary mb-4">
                   ${tier.price}
                 </p>
                 <p className="text-gray-600">{tier.description}</p>
