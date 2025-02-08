@@ -2,6 +2,12 @@ import { useState, useCallback, useEffect } from 'react';
 import { ErrorCodes } from '@/types/errors';
 import { useDropzone } from 'react-dropzone';
 import Head from 'next/head';
+import { loadStripe } from '@stripe/stripe-js';
+
+// Optional Stripe loading for future use
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY 
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY)
+  : null;
 
 export default function Home() {
   const [files, setFiles] = useState<File[]>([]);
