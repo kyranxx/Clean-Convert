@@ -4,10 +4,13 @@ const nextConfig = {
   images: {
     domains: ['localhost'],
   },
-  env: {
-    NEXT_PUBLIC_STRIPE_PUBLIC_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY,
-    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
-  }
+  webpack: (config) => {
+    config.module.rules.push({
+      test: /\.css$/,
+      use: ['postcss-loader'],
+    });
+    return config;
+  },
 }
 
 module.exports = nextConfig
