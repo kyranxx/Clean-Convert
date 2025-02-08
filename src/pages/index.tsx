@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { ErrorCodes } from '@/types/errors';
 import { useDropzone } from 'react-dropzone';
 import Head from 'next/head';
 import { loadStripe } from '@stripe/stripe-js';
@@ -21,10 +22,18 @@ export default function Home() {
   const [files, setFiles] = useState<File[]>([]);
   const [converting, setConverting] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState('png');
+  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number>(0);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
+    setError(null);
     setFiles(acceptedFiles);
   }, []);
+
+  useEffect(() => {
+    // Reset error when format changes
+    setError(null);
+  }, [selectedFormat]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -38,6 +47,9 @@ export default function Home() {
     if (files.length === 0) return;
     
     setConverting(true);
+    setError(null);
+    setProgress(0);
+    
     try {
       if (files.length === 1) {
         const formData = new FormData();
@@ -48,14 +60,19 @@ export default function Home() {
           method: 'POST',
           body: formData,
         });
+
+        const contentType = response.headers.get('content-type');
         
-        if (response.ok) {
+        if (response.ok && contentType?.startsWith('image/')) {
           const blob = await response.blob();
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
           a.download = `converted.${selectedFormat}`;
           a.click();
+        } else {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Conversion failed');
         }
       } else {
         const response = await fetch('/api/create-checkout-session', {
@@ -77,8 +94,10 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Conversion failed:', error);
+      setError(error instanceof Error ? error.message : 'Conversion failed');
     } finally {
       setConverting(false);
+      setProgress(0);
     }
   };
 
@@ -99,14 +118,20 @@ export default function Home() {
         </p>
 
         <div className="max-w-2xl mx-auto">
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+              {error}
+            </div>
+          )}
+
           <div
             {...getRootProps()}
             className={`card animated-border ${
               isDragActive ? 'border-primary-300 bg-primary-50' : ''
-            } transition-all duration-300 ease-in-out cursor-pointer`}
+            } ${error ? 'border-red-300' : ''} transition-all duration-300 ease-in-out cursor-pointer`}
           >
             <input {...getInputProps()} />
-            <div className="space-y-4 text-center">
+            <div className="space-y-4 text-center relative">
               <div className={`text-xl ${isDragActive ? 'text-primary-600' : 'text-gray-600'}`}>
                 {isDragActive ? (
                   <p className="animate-float">Drop your images here...</p>
@@ -115,9 +140,32 @@ export default function Home() {
                 )}
               </div>
               {files.length > 0 && (
-                <p className="text-sm text-gray-500 bg-gray-50 py-2 px-4 rounded-full inline-block">
-                  {files.length} file(s) selected
-                </p>
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-500 bg-gray-50 py-2 px-4 rounded-full inline-block">
+                    {files.length} file(s) selected
+                  </p>
+                  <ul className="text-xs text-gray-500 max-h-24 overflow-y-auto">
+                    {files.map((file, index) => (
+                      <li key={index} className="truncate">
+                        {file.name} ({(file.size / 1024).toFixed(1)} KB)
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {converting && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-90">
+                  <div className="space-y-3">
+                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div 
+                        className="bg-primary h-2.5 rounded-full transition-all duration-300"
+                        style={{ width: `${progress}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-sm text-gray-600">Converting...</p>
+                  </div>
+                </div>
               )}
             </div>
           </div>

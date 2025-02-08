@@ -1,10 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import formidable, { Fields, Files } from 'formidable';
-import { createReadStream, createWriteStream } from 'fs';
-import { unlink } from 'fs/promises';
 import sharp from 'sharp';
-import path from 'path';
 import { File } from 'formidable';
+import { ConversionError, ErrorCodes } from '@/types/errors';
+import { FileOperations, MAX_FILE_SIZE } from '@/utils/file-operations';
 
 export const config = {
   api: {
@@ -12,52 +11,61 @@ export const config = {
   },
 };
 
-const saveFile = async (file: File): Promise<string> => {
-  const tempPath = path.join(process.cwd(), 'tmp', file.newFilename);
-  const writeStream = createWriteStream(tempPath);
-  const readStream = createReadStream(file.filepath);
-  
-  await new Promise((resolve, reject) => {
-    readStream.pipe(writeStream)
-      .on('finish', () => resolve(undefined))
-      .on('error', reject);
-  });
+const fileOps = new FileOperations();
 
-  return tempPath;
-};
+async function convertImage(inputPath: string, format: string): Promise<Buffer> {
+  const validateFormat: typeof fileOps.validateFormat = format => fileOps.validateFormat(format);
+  try {
+    validateFormat(format);
+    const image = sharp(inputPath);
+    const metadata = await image.metadata();
+    
+    const pipeline = image.rotate(); // Auto-rotate based on EXIF
 
-const convertImage = async (inputPath: string, format: string): Promise<Buffer> => {
-  const image = sharp(inputPath);
-  
-  switch (format.toLowerCase()) {
-    case 'png':
-      return image.png().toBuffer();
-    case 'jpg':
-    case 'jpeg':
-      return image.jpeg().toBuffer();
-    case 'webp':
-      return image.webp().toBuffer();
-    case 'gif':
-      return image.gif().toBuffer();
-    default:
-      throw new Error('Unsupported format');
+    if (metadata.width && metadata.width > 4000) {
+      pipeline.resize(4000, null, { withoutEnlargement: true });
+    }
+
+    switch (format.toLowerCase()) {
+      case 'png':
+        return pipeline.png({ palette: true }).toBuffer();
+      case 'jpg':
+      case 'jpeg':
+        return pipeline.jpeg({ quality: 85, mozjpeg: true }).toBuffer();
+      case 'webp':
+        return pipeline.webp({ quality: 85, effort: 6 }).toBuffer();
+      case 'gif':
+        return pipeline.gif({ colours: 256 }).toBuffer();
+      default:
+        throw new ConversionError('Invalid format', ErrorCodes.INVALID_FORMAT);
+    }
+  } catch (error) {
+    if (error instanceof ConversionError) throw error;
+    throw new ConversionError(
+      'Failed to convert image',
+      ErrorCodes.CONVERSION_FAILED
+    );
   }
-};
+}
 
-const cleanupFiles = async (...paths: string[]) => {
-  await Promise.all(paths.map(path => unlink(path).catch(() => {})));
-};
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ 
+      error: 'Method not allowed',
+      code: 'METHOD_NOT_ALLOWED'
+    });
   }
+
+  let tempPath: string | undefined;
+  let originalPath: string | undefined;
 
   try {
-    const form = formidable();
+    const form = formidable({
+      maxFileSize: MAX_FILE_SIZE,
+      multiples: true,
+    });
+
     const [fields, files] = await new Promise<[Fields, Files]>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) reject(err);
@@ -69,19 +77,37 @@ export default async function handler(
     const format = Array.isArray(fields.format) ? fields.format[0] : fields.format;
 
     if (!file || !format) {
-      return res.status(400).json({ error: 'Missing file or format' });
+      return res.status(400).json({ 
+        error: 'Missing file or format',
+        code: 'MISSING_PARAMETERS'
+      });
     }
 
-    const tempPath = await saveFile(file);
+    originalPath = file.filepath;
+    tempPath = await fileOps.saveFile(file);
     const convertedBuffer = await convertImage(tempPath, format);
-
-    await cleanupFiles(tempPath, file.filepath);
 
     res.setHeader('Content-Type', `image/${format}`);
     res.setHeader('Content-Disposition', `attachment; filename="converted.${format}"`);
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
     res.send(convertedBuffer);
   } catch (error) {
     console.error('Conversion error:', error);
-    res.status(500).json({ error: 'Failed to convert image' });
+    
+    if (error instanceof ConversionError) {
+      res.status(400).json({ 
+        error: error.message,
+        code: error.code
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Internal server error',
+        code: 'INTERNAL_ERROR'
+      });
+    }
+  } finally {
+    if (tempPath || originalPath) {
+      await fileOps.cleanup(tempPath!, originalPath!);
+    }
   }
 }
