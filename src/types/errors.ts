@@ -11,8 +11,6 @@ export const ErrorCodes = {
   CONVERSION_FAILED: 'CONVERSION_FAILED',
   STORAGE_ERROR: 'STORAGE_ERROR',
   INVALID_PARAMETERS: 'INVALID_PARAMETERS',
-  PAYMENT_ERROR: 'PAYMENT_ERROR',
-  PAYMENT_REQUIRED: 'PAYMENT_REQUIRED',
 } as const;
 
 export type ErrorCode = typeof ErrorCodes[keyof typeof ErrorCodes];

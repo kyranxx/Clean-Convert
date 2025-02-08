@@ -3,7 +3,7 @@
 A modern image conversion application built with Next.js, featuring:
 
 - Multiple format support (PNG, JPG, WEBP, GIF)
-- Batch processing with Stripe integration
+- Batch processing support
 - Optimized conversion settings
 - Error handling and validation
 - Secure file operations
@@ -15,11 +15,13 @@ npm install
 npm run dev
 ```
 
-## Environment Variables
+## Features
 
-Required environment variables:
-- NEXT_PUBLIC_STRIPE_PUBLIC_KEY
-- STRIPE_SECRET_KEY
+- Convert images to PNG, JPG, WEBP, or GIF formats
+- Batch processing with progress tracking
+- Drag and drop interface
+- Optimized conversion settings
+- Error handling and validation
 
 ## Deployment
 

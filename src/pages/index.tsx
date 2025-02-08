@@ -2,21 +2,6 @@ import { useState, useCallback, useEffect } from 'react';
 import { ErrorCodes } from '@/types/errors';
 import { useDropzone } from 'react-dropzone';
 import Head from 'next/head';
-import { loadStripe } from '@stripe/stripe-js';
-
-interface PricingTier {
-  range: string;
-  price: number;
-  description: string;
-}
-
-const pricingTiers: PricingTier[] = [
-  { range: '2-10', price: 1.99, description: 'Small batch conversion' },
-  { range: '11-30', price: 3.99, description: 'Medium batch conversion' },
-  { range: '31-100', price: 7.99, description: 'Large batch conversion' },
-];
-
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY!);
 
 export default function Home() {
   const [files, setFiles] = useState<File[]>([]);
@@ -51,47 +36,36 @@ export default function Home() {
     setProgress(0);
     
     try {
-      if (files.length === 1) {
-        const formData = new FormData();
-        formData.append('file', files[0]);
-        formData.append('format', selectedFormat);
-        
-        const response = await fetch('/api/convert', {
-          method: 'POST',
-          body: formData,
-        });
+  // Convert each file one by one
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    setProgress(Math.round((i / files.length) * 100));
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('format', selectedFormat);
+    
+    const response = await fetch('/api/convert', {
+      method: 'POST',
+      body: formData,
+    });
 
-        const contentType = response.headers.get('content-type');
-        
-        if (response.ok && contentType?.startsWith('image/')) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `converted.${selectedFormat}`;
-          a.click();
-        } else {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Conversion failed');
-        }
-      } else {
-        const response = await fetch('/api/create-checkout-session', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            files: files.length,
-            format: selectedFormat,
-          }),
-        });
-        
-        const { sessionId } = await response.json();
-        const stripe = await stripePromise;
-        if (stripe) {
-          await stripe.redirectToCheckout({ sessionId });
-        }
-      }
+    const contentType = response.headers.get('content-type');
+    
+    if (response.ok && contentType?.startsWith('image/')) {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${file.name.split('.')[0]}_converted.${selectedFormat}`;
+      a.click();
+      // Small delay between downloads
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setProgress(Math.round(((i + 1) / files.length) * 100));
+    } else {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Conversion failed');
+    }
+  }
     } catch (error) {
       console.error('Conversion failed:', error);
       setError(error instanceof Error ? error.message : 'Conversion failed');
@@ -205,28 +179,6 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="mt-24">
-          <h2 className="text-3xl font-bold text-center mb-4 gradient-text">
-            Simple Pricing
-          </h2>
-          <p className="text-center text-gray-600 mb-12">
-            Choose the perfect plan for your needs
-          </p>
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {pricingTiers.map((tier) => (
-              <div
-                key={tier.range}
-                className="card hover:scale-105 transition-transform duration-300"
-              >
-                <h3 className="text-xl font-semibold mb-2">{tier.range} Images</h3>
-                <p className="text-4xl font-bold text-primary mb-4">
-                  ${tier.price}
-                </p>
-                <p className="text-gray-600">{tier.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
       </main>
     </div>
   );
